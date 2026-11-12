@@ -1,2 +1,0 @@
-# MeeCash
-Final Design
