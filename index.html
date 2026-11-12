@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- [THEME] สคริปต์สั้นๆ ที่ต้องรันก่อนแสดงผล เพื่อไม่ให้หน้ากะพริบผิดสี จึงเก็บไว้ inline -->
+<script>/* [THEME] โหลดโหมดสีที่บันทึกไว้ก่อนแสดงผล (light / dark / ไม่มี = ตามระบบ) */(function(){try{var t=localStorage.getItem("meecash.theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}})();</script>
+<title>MeeCash</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="app page" id="pg-dashboard" data-route="dashboard">
+  <header class="top">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">฿</div>
+      <div>
+        <div class="name">MeeCash</div>
+        <div class="today" id="todayText"></div>
+      </div>
+    </div>
+    <button class="pill" id="openPie" type="button"><span data-icon="pie"></span>สรุป</button>
+  </header>
+
+  <section class="hero" aria-label="ยอดคงเหลือ">
+    <div class="gauge">
+      <svg viewBox="0 0 300 172" aria-hidden="true">
+        <path class="g-track" pathLength="100" d="M 20 150 A 130 130 0 0 1 280 150"/>
+        <path class="g-prog" id="gArc" pathLength="100" d="M 20 150 A 130 130 0 0 1 280 150"/>
+        <text class="g-tick" x="20" y="169" text-anchor="middle">0%</text>
+        <text class="g-tick" x="280" y="169" text-anchor="middle">100%</text>
+      </svg>
+      <div class="g-text">
+        <div class="g-lbl">คงเหลือ</div>
+        <div class="g-val" id="balVal">0.00 <small>฿</small></div>
+        <div class="g-sub" id="balSub"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="split" aria-label="สรุปรับและจ่าย">
+    <div class="in">
+      <div class="s-top"><span class="badge" data-icon="down"></span><span>รับ</span></div>
+      <div class="s-val" id="incVal">+ 0.00 <small>฿</small></div>
+    </div>
+    <div class="out">
+      <div class="s-top"><span class="badge" data-icon="up"></span><span>จ่าย</span></div>
+      <div class="s-val" id="expVal">- 0.00 <small>฿</small></div>
+    </div>
+  </section>
+
+  <section class="list" id="listSec" aria-label="รายการล่าสุด"></section>
+</main>
+
+<button class="fab" id="fab" type="button" aria-label="เพิ่มรายการ"><span data-icon="plus"></span></button>
+
+<!-- เพิ่มรายการ -->
+<div class="layer" id="addLayer" hidden>
+  <div class="panel" id="addPanel" data-type="expense" role="dialog" aria-modal="true" aria-label="เพิ่มรายการ">
+    <div class="p-head">
+      <button class="x" id="addClose" type="button" aria-label="ปิด"><span data-icon="close"></span></button>
+      <div class="seg" role="tablist" aria-label="ประเภทรายการ">
+        <button type="button" role="tab" id="tabIncome" data-type="income" aria-selected="false"><span data-icon="down"></span>รายรับ</button>
+        <button type="button" role="tab" id="tabExpense" data-type="expense" aria-selected="true"><span data-icon="up"></span>รายจ่าย</button>
+      </div>
+    </div>
+    <form id="addForm" novalidate autocomplete="off">
+      <label class="datebar">
+        <span data-icon="calendar"></span>
+        <span class="num" id="dateText"></span>
+        <input type="date" id="dateInput" aria-label="เปลี่ยนวันที่">
+      </label>
+      <div class="amount" id="amtWrap">
+        <span id="amtArrow"></span>
+        <input id="amtInput" type="text" inputmode="decimal" placeholder="0.00" aria-label="จำนวนเงิน" enterkeyhint="next">
+        <span class="baht">฿</span>
+      </div>
+      <p class="err" id="amtErr" aria-live="polite"></p>
+      <fieldset>
+        <legend>หมวดหมู่</legend>
+        <div class="chips" id="chips"></div>
+      </fieldset>
+      <div class="field"><label for="titleInput">หัวข้อ</label><input id="titleInput" type="text" maxlength="60" enterkeyhint="next"></div>
+      <div class="field"><label for="noteInput">โน้ต</label><textarea id="noteInput" maxlength="200" placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ)"></textarea></div>
+      <button class="save" id="saveBtn" type="submit">บันทึกรายจ่าย</button>
+    </form>
+  </div>
+</div>
+
+<!-- สรุป Pie -->
+<div class="layer" id="pieLayer" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-label="สรุปสัดส่วนตามหมวดหมู่">
+    <div class="p-head">
+      <h2>สรุปตามหมวดหมู่</h2>
+      <button class="x" id="pieClose" type="button" aria-label="ปิด"><span data-icon="close"></span></button>
+    </div>
+    <div class="seg pseg" role="tablist" aria-label="เลือกประเภท" style="margin-bottom:14px">
+      <button type="button" role="tab" data-ptype="expense" aria-selected="true">รายจ่าย</button>
+      <button type="button" role="tab" data-ptype="income" aria-selected="false">รายรับ</button>
+    </div>
+    <div id="pieBody"></div>
+  </div>
+</div>
+
+<!-- ===== เฟส 2: Investment Simulator ===== -->
+<main class="app page" id="pg-trading" data-route="trading" hidden>
+  <header class="sim-top">
+    <button class="ib" id="menuBtn" type="button" aria-label="เปิดเมนู" aria-haspopup="dialog"><span data-i2="menu"></span></button>
+    <div class="assets" id="assetRow" role="group" aria-label="เลือกสินทรัพย์"></div>
+    <button class="ib" id="assetNext" type="button" aria-label="เลื่อนดูสินทรัพย์ถัดไป"><span data-i2="chev"></span></button>
+  </header>
+
+  <section class="cash" aria-label="เงินจำลอง">
+    <div class="c-lbl">เงินจำลอง</div>
+    <div class="c-val" id="tCash">10,000.00 <small>$</small></div>
+    <div class="c-sub" id="tNet"></div>
+  </section>
+
+  <section class="chart-card" aria-label="กราฟราคา">
+    <div class="cc-head">
+      <div><div class="cc-name" id="ccName"></div><div class="cc-type" id="ccType"></div></div>
+      <div class="seg sm" role="tablist" aria-label="รูปแบบกราฟ">
+        <button type="button" role="tab" data-mode="line" aria-selected="true">เส้น</button>
+        <button type="button" role="tab" data-mode="candle" aria-selected="false">แท่ง</button>
+      </div>
+    </div>
+    <div class="cc-pr"><span class="cc-price" id="ccPrice"></span><span class="chg" id="ccChg"></span></div>
+    <div id="chartBox"></div>
+    <div class="stats">
+      <div class="st"><div class="l">สูงสุด</div><div class="v" id="stHi"></div></div>
+      <div class="st"><div class="l">ต่ำสุด</div><div class="v" id="stLo"></div></div>
+      <div class="st"><div class="l">เฉลี่ย</div><div class="v" id="stAvg"></div></div>
+    </div>
+    <!-- [ALPHA VANTAGE] ข้อความสถานะข้อมูล + ปุ่มรีเฟรช (ข้อความถูกเติมโดย renderStatus() ในสคริปต์) -->
+    <p class="cap" id="dataStatus">กำลังโหลดข้อมูล…</p>
+    <button class="more" id="refreshBtn" type="button" style="width:100%;margin:8px 0 0;height:38px;font-size:13px">รีเฟรชข้อมูล</button>
+  </section>
+
+  <div class="orders">
+    <button class="ob buy" id="buyBtn" type="button">Buy</button>
+    <button class="ob sell" id="sellBtn" type="button">Sell</button>
+  </div>
+  <p class="hold" id="tHold"></p>
+</main>
+
+<main class="app page" id="pg-wallet" data-route="wallet" hidden>
+  <header class="w-head">
+    <h1>MeeCash</h1>
+    <button class="ib" id="walletClose" type="button" aria-label="ปิดและกลับไปหน้า Trading"><span data-i2="close"></span></button>
+  </header>
+
+  <section class="bal-card" aria-label="ยอดเงินคงเหลือ">
+    <div class="lbl">ยอดเงินคงเหลือ</div>
+    <div class="val" id="wCash">0.00 <small>$</small></div>
+    <dl class="kv">
+      <div><dt>มูลค่าสินทรัพย์</dt><dd id="wHold"></dd></div>
+      <div><dt>มูลค่าพอร์ตรวม</dt><dd id="wNet"></dd></div>
+      <div><dt>กำไร/ขาดทุนรวม</dt><dd id="wPL"></dd></div>
+    </dl>
+  </section>
+
+  <section class="list" id="wAssets" aria-label="สินทรัพย์ที่ถือครอง"></section>
+  <section class="list" id="wHist" aria-label="ประวัติการซื้อขาย"></section>
+
+  <button class="reset" id="resetBtn" type="button">Reset</button>
+</main>
+
+<main class="app page" id="pg-learning" data-route="learning" hidden>
+  <!-- หน้าแรกของ Learning -->
+  <div class="lv" id="lHome">
+    <header class="top">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">฿</div>
+        <div><div class="name">MeeCash</div><div class="today">Investment Learning</div></div>
+      </div>
+    </header>
+    <section aria-labelledby="lhTitle">
+      <h1 class="lh-title" id="lhTitle">Welcome back, Investor!</h1>
+      <p class="lh-sub" id="lhSub"></p>
+      <div class="prog" id="lhProg" role="progressbar" aria-label="บทเรียนที่เรียนจบแล้ว" aria-valuemin="0" aria-valuemax="6" aria-valuenow="0"><i></i></div>
+    </section>
+    <button class="start-big" id="lhStart" type="button"><span><b>Start</b><small id="lhNext"></small></span><span class="play" data-i3="play"></span></button>
+    <div id="lhList"></div>
+  </div>
+
+  <!-- รายละเอียดบทเรียน -->
+  <div class="lv" id="lLesson" hidden>
+    <button class="back" id="ldBack" type="button"><span data-i3="back"></span>กลับ</button>
+    <div class="cover ld-cover" id="ldCover"></div>
+    <h1 class="ld-h" id="ldTitle"></h1>
+    <p class="ld-sub" id="ldSub"></p>
+    <section class="ld-card"><h2>สรุปก่อนทำควิซ</h2><ul class="ld-points" id="ldPoints"></ul></section>
+    <dl class="ld-meta">
+      <div><dt>จำนวนข้อ</dt><dd id="ldQ"></dd></div>
+      <div><dt>เวลา</dt><dd id="ldMin"></dd></div>
+      <div><dt>ดีที่สุด</dt><dd id="ldBest"></dd></div>
+    </dl>
+    <button class="start-big" id="ldStart" type="button"><span><b>Start</b><small>เริ่มทำควิซ ผ่านเกณฑ์ที่ 60%</small></span><span class="play" data-i3="play"></span></button>
+  </div>
+
+  <!-- นับถอยหลัง 3-2-1 -->
+  <div class="lv cd" id="lCount" hidden>
+    <div class="cd-c" role="timer" aria-live="polite"><span id="cdNum">3</span></div>
+  </div>
+
+  <!-- Quiz Mode -->
+  <div class="lv" id="lQuiz" hidden>
+    <div class="qz-top">
+      <button class="ib" id="qExit" type="button" aria-label="ออกจากควิซ" data-i3="close"></button>
+      <div class="qz-time" id="qTimeBox" role="timer"><span data-i3="clock"></span><span id="qTime">00:00</span><small>Left</small></div>
+      <div class="qz-r">
+        <div class="qz-pill" id="qCnt">0/6</div>
+        <div class="qz-pill" id="qStreakBox"><span class="fl" data-i3="flame"></span><span id="qStreak">0</span></div>
+      </div>
+    </div>
+    <div class="segs" id="qSegs" aria-hidden="true"></div>
+    <section class="qz-card"><div class="qz-n" id="qN"></div><div class="qz-q" id="qText"></div></section>
+    <div class="qz-opts" id="qOpts"></div>
+    <div class="qz-fb" id="qFb" hidden aria-live="polite">
+      <div class="fb-h" id="qFbH"></div>
+      <p id="qFbX"></p>
+      <button class="btn-main" id="qNext" type="button">ข้อถัดไป</button>
+    </div>
+  </div>
+
+  <!-- Result Screen -->
+  <div class="lv" id="lResult" hidden>
+    <section class="rs-card" aria-labelledby="rsTitle">
+      <div class="rs-score"><b id="rsCorrect">0</b> / <span id="rsTotal">0</span></div>
+      <div class="rs-lbl" id="rsTitle">ตอบถูก</div>
+      <div class="rs-acc">
+        <div class="row2"><span>Accuracy</span><b id="rsAcc">0%</b></div>
+        <div class="prog" id="rsProg" role="progressbar" aria-label="ความแม่นยำ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+      </div>
+      <dl class="rs-tiles">
+        <div><dt>จำนวนข้อสอบ</dt><dd id="rsQ"></dd></div>
+        <div><dt>เวลาที่ใช้</dt><dd id="rsTime"></dd></div>
+        <div><dt>Streak สูงสุด</dt><dd><span class="fl" data-i3="flame"></span><span id="rsStreak">0</span></dd></div>
+      </dl>
+      <div class="rs-msg" id="rsMsg"></div>
+    </section>
+    <div class="rs-act">
+      <button class="btn-main" id="rsFinish" type="button">Finish</button>
+      <button class="btn-sec" id="rsRetry" type="button">ลองอีกครั้ง</button>
+    </div>
+    <section class="rv" id="rsReview" hidden></section>
+  </div>
+</main>
+
+<div class="qz-banner" id="qBanner" hidden role="status"><div><b id="qBannerT">Finish!</b><span id="qBannerS"></span></div></div>
+
+<div class="layer" id="quitLayer" hidden>
+  <div class="panel" role="alertdialog" aria-modal="true" aria-labelledby="quitTitle">
+    <div class="p-head"><h2 id="quitTitle">ออกจากควิซ?</h2></div>
+    <p class="r-text">ความคืบหน้าของรอบนี้จะไม่ถูกบันทึก เวลาหยุดนับไว้ระหว่างที่ยังไม่ตัดสินใจ</p>
+    <div class="r-actions">
+      <button class="btn-ghost" id="quitStay" type="button">ทำต่อ</button>
+      <button class="btn-danger" id="quitGo" type="button">ออก</button>
+    </div>
+  </div>
+</div>
+
+<nav class="bnav" aria-label="เมนูหลัก">
+  <div class="bnav-in">
+    <button class="bn" type="button" data-nav="dashboard"><span data-i2="home"></span><span>การเงิน</span></button>
+    <button class="bn" type="button" data-nav="simulator"><span data-i2="sim"></span><span>ลงทุนจำลอง</span></button>
+    <button class="bn" type="button" data-nav="learning"><span data-i2="learn"></span><span>เรียนรู้</span></button>
+    <!-- [THEME] ปุ่มตั้งค่า: เปิดหน้าต่างเลือกโหมด มืด/สว่าง -->
+    <button class="bn" type="button" id="settingsBtn" aria-haspopup="dialog"><span data-i2="gear"></span><span>ตั้งค่า</span></button>
+  </div>
+</nav>
+
+<!-- Drawer (ปุ่ม 3 ขีด) -->
+<div class="layer dlayer" id="drawerLayer" hidden>
+  <nav class="drawer" role="dialog" aria-modal="true" aria-label="เมนูตัวจำลองการลงทุน">
+    <div class="d-head">
+      <span class="name">MeeCash</span>
+      <button class="x" id="drawerClose" type="button" aria-label="ปิดเมนู"><span data-i2="close"></span></button>
+    </div>
+    <div class="d-sub">Investment Simulator</div>
+    <button class="d-item" type="button" data-go="trading"><span data-i2="trade"></span><span><b>Trading</b><small>ราคา กราฟ และคำสั่งซื้อขาย</small></span></button>
+    <button class="d-item" type="button" data-go="wallet"><span data-i2="wallet"></span><span><b>Wallet</b><small>เงินคงเหลือ พอร์ต และประวัติ</small></span></button>
+  </nav>
+</div>
+
+<!-- คำสั่งซื้อ/ขาย -->
+<div class="layer" id="orderLayer" hidden>
+  <div class="panel" id="orderPanel" data-side="buy" role="dialog" aria-modal="true" aria-labelledby="orderTitle">
+    <div class="p-head">
+      <button class="x" id="orderClose" type="button" aria-label="ปิด"><span data-i2="close"></span></button>
+      <h2 id="orderTitle">ซื้อ</h2>
+    </div>
+    <div class="o-price"><span class="l" id="oName"></span><span class="num" id="oPrice"></span></div>
+    <form id="orderForm" novalidate autocomplete="off">
+      <div class="amount" id="oWrap">
+        <input id="oQty" type="text" inputmode="decimal" placeholder="0" aria-label="จำนวนหน่วย">
+        <span class="unit">หน่วย</span>
+      </div>
+      <p class="err" id="oErr" aria-live="polite"></p>
+      <div class="avail" id="oAvail"></div>
+      <div class="quick" id="oQuick">
+        <button type="button" data-pct="25">25%</button>
+        <button type="button" data-pct="50">50%</button>
+        <button type="button" data-pct="75">75%</button>
+        <button type="button" data-pct="100">สูงสุด</button>
+      </div>
+      <dl class="sum" id="oSum"></dl>
+      <button class="save" id="oSubmit" type="submit">ยืนยัน</button>
+    </form>
+  </div>
+</div>
+
+<!-- [THEME] หน้าต่างตั้งค่า -->
+<div class="layer" id="settingsLayer" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="p-head">
+      <h2 id="settingsTitle">ตั้งค่า</h2>
+      <button class="x" id="settingsClose" type="button" aria-label="ปิด"><span data-i2="close"></span></button>
+    </div>
+    <div class="r-text" style="margin-bottom:8px">โหมดการแสดงผล</div>
+    <div class="seg" id="themeSeg" role="tablist" aria-label="โหมดการแสดงผล" style="margin-bottom:6px">
+      <button type="button" role="tab" data-theme-set="system" aria-selected="false">ตามระบบ</button>
+      <button type="button" role="tab" data-theme-set="light" aria-selected="false">สว่าง</button>
+      <button type="button" role="tab" data-theme-set="dark" aria-selected="false">มืด</button>
+    </div>
+  </div>
+</div>
+
+<!-- ยืนยัน Reset -->
+<div class="layer" id="resetLayer" hidden>
+  <div class="panel" role="alertdialog" aria-modal="true" aria-labelledby="resetTitle">
+    <div class="p-head">
+      <h2 id="resetTitle">รีเซ็ตพอร์ตจำลอง?</h2>
+      <button class="x" id="resetX" type="button" aria-label="ปิด"><span data-i2="close"></span></button>
+    </div>
+    <p class="r-text">เงินจะกลับเป็น 10,000.00 $ สินทรัพย์ที่ถืออยู่และประวัติซื้อขายทั้งหมดจะถูกล้าง ส่วนราคาตลาดจะไม่ถูกรีเซ็ต</p>
+    <div class="r-actions">
+      <button class="btn-ghost" id="resetCancel" type="button">ยกเลิก</button>
+      <button class="btn-danger" id="resetConfirm" type="button">รีเซ็ต</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- สคริปต์ทั้งหมดของแอปอยู่ในไฟล์เดียว ต้องโหลดท้าย body -->
+<script src="script.js"></script>
+</body></html>
